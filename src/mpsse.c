@@ -51,6 +51,9 @@ int removeFtdiModule(void) {
 }
 
 int mpsse_init(void) {
+    FT_DEVICE_LIST_INFO_NODE device;
+    uint32 chCount = 0;
+
     // Check if the FTDI serial module is loaded. If so, remove it.
     // This requires sudo when running after a build. Not required when installed.
     if (checkIfFtdiModuleLoaded() > 0) {
@@ -64,7 +67,21 @@ int mpsse_init(void) {
 
     Init_libMPSSE();
 
-    (void)mpsse_getChannelCount();
+    chCount = mpsse_getChannelCount();
+
+    printf("Found %d MPSSE capable channel(s).\n", chCount);
+    for(uint8 i = 0; i < chCount; i++) {
+        device = mpsse_getChannelInfo(i);
+        printf("Information on channel number %d:\n", i);
+        /* print the dev info */
+        printf("    Flags=0x%x\n", device.Flags);
+        printf("    Type=0x%x\n", device.Type);
+        printf("    ID=0x%x\n", device.ID);
+        printf("    LocId=0x%x\n", device.LocId);
+        printf("    SerialNumber=%s\n", device.SerialNumber);
+        printf("    Description=%s\n", device.Description);
+        printf("    ftHandle=0x%x\n", (unsigned int)device.ftHandle); /*is 0 unless open*/
+    }
 
     return EXIT_SUCCESS;
 }
@@ -76,11 +93,24 @@ uint32 mpsse_getChannelCount(void) {
     // create the device information list
     ftStatus = FT_CreateDeviceInfoList(&numDevs);
     APP_CHECK_STATUS(ftStatus);
-    printf("Number of FTDI devices connected: %d\n",numDevs);
     // retrieve the number of devices that are capable of MPSSE
     ftStatus = SPI_GetNumChannels(&channels);
     APP_CHECK_STATUS(ftStatus);
-    printf("Number of available MPSSE channels: %d\n", (int)channels);
 
     return channels;
+}
+
+FT_DEVICE_LIST_INFO_NODE mpsse_getChannelInfo(int index) {
+    FT_DEVICE_LIST_INFO_NODE deviceInfo;
+    FT_STATUS ftStatus;
+    int count = mpsse_getChannelCount();
+
+    if( (count <= 0) || (index >= count) ) {
+        return deviceInfo;
+    }
+
+    ftStatus = SPI_GetChannelInfo(index, &deviceInfo);
+    APP_CHECK_STATUS(ftStatus);
+
+    return deviceInfo;
 }
