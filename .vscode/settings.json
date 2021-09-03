@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "mpsse.h": "c",
+        "gtk.h": "c",
+        "gtklistbox.h": "c"
+    }
+}

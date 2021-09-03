@@ -1,0 +1,15 @@
+{
+    "version" : "2.0.0",
+    "tasks": [
+        {
+            "label": "Build GUI app - RELEASE 🔥",
+            "type": "shell",
+            "command": "cd ${cwd} && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make -j12",
+            "group" : {
+                "kind": "build",
+                "isDefault": false,
+                "problemMatcher": "$gcc"
+            }
+        }
+    ]
+}
