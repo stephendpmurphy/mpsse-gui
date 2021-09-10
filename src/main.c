@@ -39,14 +39,11 @@ static void validateRxLen(void) {
 }
 
 static void validateTxData(void) {
-   gchar *txData;
+   const gchar *txData = gtk_entry_get_text(GTK_ENTRY(txtData));
    char errorMsg[128] = {0x00};
    int listLength = 0;
    int lastCommaIndex = 0;
    char hexCharacter[5] = {0x00};
-
-   // Retrieve a string from the txtData entry
-   txData = gtk_entry_get_text(GTK_ENTRY(txtData));
 
    // Check if the string is empty
    if( strlen(txData) > 0 ) {
@@ -169,7 +166,7 @@ static void initCboTxRx(void) {
    gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(cboTxRx), NULL, STRING_TX);
    gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(cboTxRx), NULL, STRING_RX);
    gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(cboTxRx), NULL, STRING_TX_RX);
-   gtk_combo_box_set_active( GTK_COMBO_BOX_TEXT(cboTxRx), 0);
+   gtk_combo_box_set_active( GTK_COMBO_BOX(cboTxRx), 0);
 }
 
 static void initUI(void) {

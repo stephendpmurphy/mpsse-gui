@@ -28,7 +28,9 @@ static int checkIfFtdiModuleLoaded(void) {
     }
 
     // Read out any resulst from running the lsmod command
-    fgets(modRes, sizeof(modRes), fp);
+    if( fgets(modRes, sizeof(modRes), fp) == NULL ) {
+        return 0;
+    }
 
     // Check if the result has any characters
     if (strlen(modRes) == 0) {
@@ -70,18 +72,6 @@ int mpsse_init(void) {
     chCount = mpsse_getChannelCount();
 
     printf("Found %d MPSSE capable channel(s).\n", chCount);
-    for(uint8 i = 0; i < chCount; i++) {
-        device = mpsse_getChannelInfo(i);
-        printf("Information on channel number %d:\n", i);
-        /* print the dev info */
-        printf("    Flags=0x%x\n", device.Flags);
-        printf("    Type=0x%x\n", device.Type);
-        printf("    ID=0x%x\n", device.ID);
-        printf("    LocId=0x%x\n", device.LocId);
-        printf("    SerialNumber=%s\n", device.SerialNumber);
-        printf("    Description=%s\n", device.Description);
-        printf("    ftHandle=0x%x\n", (unsigned int)device.ftHandle); /*is 0 unless open*/
-    }
 
     return EXIT_SUCCESS;
 }
