@@ -1,18 +1,140 @@
 #include <gtk/gtk.h>
 #include "mpsse.h"
 
+#define STRING_TX    "Write"
+#define STRING_RX    "Read"
+#define STRING_TX_RX "Write/Read"
+
 GtkBuilder *builder;
 GtkWidget *window;
 GtkWidget *fixed1;
 GtkWidget *btnSend;
 GtkWidget *btnClear;
 GtkWidget *lblStatus;
+GtkWidget *lblTxDataStatus;
 GtkWidget *scrollWindow;
 GtkWidget *bxTxRx;
+GtkWidget *cboTxRx;
+GtkWidget *txtData;
+GtkCssProvider *cssProvider;
 
 static int rowCounter = 0;
 
-static void addListRow(void) {
+static void applyInvalidInputStyling(GtkWidget *widget) {
+   GtkStyleContext *context = gtk_widget_get_style_context(widget);
+   gtk_style_context_add_class(context, "invalid_input");
+}
+
+static void clearInvalidInputStyling(GtkWidget *widget) {
+   GtkStyleContext *context = gtk_widget_get_style_context(widget);
+   gtk_style_context_remove_class(context, "invalid_input");
+}
+
+static void setTxDataErrorMsg(const gchar *msg) {
+   gtk_label_set_text(GTK_LABEL(lblTxDataStatus), msg);
+}
+
+static void validateRxLen(void) {
+
+}
+
+static void validateTxData(void) {
+   gchar *txData;
+   char errorMsg[128] = {0x00};
+   int listLength = 0;
+   int lastCommaIndex = 0;
+   char hexCharacter[5] = {0x00};
+
+   // Retrieve a string from the txtData entry
+   txData = gtk_entry_get_text(GTK_ENTRY(txtData));
+
+   // Check if the string is empty
+   if( strlen(txData) > 0 ) {
+      // It's not empty. So for now, clear the invalid input styling
+      clearInvalidInputStyling(txtData);
+
+      // Get the string length
+      listLength = strlen(txData);
+      // Reset our last comma index
+      lastCommaIndex = 0;
+
+      // Loop through the list of characters processing until we find a comma
+      for(int i = 0; i <= listLength; i++) {
+         // Check for a trailing comma
+         if( (!memcmp(&txData[i], ",", 0x01)) && (i == listLength-1))  {
+            setTxDataErrorMsg("Trailing comma on data list.\n");
+            goto INVALID_STYLING;
+
+         } // If we find a comma OR we are at the end of our list. Parse the hex character
+         else if( (!memcmp(&txData[i], ",", 0x01)) || (i == listLength) ) {
+            // Check if the number of characters since a comma is greater than
+            // the size we expect for a hex character value (4)
+            if( (i  - lastCommaIndex) > (sizeof(hexCharacter) - 1) ) {
+               setTxDataErrorMsg("Hex value given too long.\n");
+               goto INVALID_STYLING;
+            }
+            // Clear out our hex character string
+            memset(hexCharacter, 0x00, sizeof(hexCharacter));
+            // Grab all the characters since our last comma. Which should be 4.
+            memcpy(hexCharacter, &txData[lastCommaIndex], i - lastCommaIndex);
+
+            // Store the new "lastCommaIndex" value
+            lastCommaIndex = i+1;
+
+            // We have a hex character and it's a valid number of characters
+            for(int z = 0; z < strlen(hexCharacter); z++) {
+               // We expect an 0x or 0X character seen at the start of hex numbers
+               if(
+                  ((z == 1) && (hexCharacter[z] != 88) && (hexCharacter[z] != 120)) ||
+                  ((z == 0) && (hexCharacter[z] != 48))
+               )
+               {
+                  setTxDataErrorMsg("Expected a 0x at the start of a hex character.\n");
+                  goto INVALID_STYLING;
+
+               } //
+               else if( !((hexCharacter[z] <= 57) && (hexCharacter[z] >= 48)) &&
+                        !((hexCharacter[z] <= 70) && (hexCharacter[z] >= 65)) &&
+                        !((hexCharacter[z] <= 102) && (hexCharacter[z] >= 97)) &&
+                        (z > 1)
+               ) {
+                  sprintf(errorMsg, "Invalid hex character given: %c\n", hexCharacter[z]);
+                  setTxDataErrorMsg((const gchar*)errorMsg);
+                  goto INVALID_STYLING;
+               }
+            }
+
+            // If it's as long or shorter than 2 characters.. It's too short.
+            if( strlen(hexCharacter) <= 2 ) {
+               setTxDataErrorMsg("Hex value given too short.\n");
+               goto INVALID_STYLING;
+            }
+         }
+      }
+
+      clearInvalidInputStyling(txtData);
+      setTxDataErrorMsg("");
+      return;
+   }
+
+   setTxDataErrorMsg("Enter a comma-delimeted hex buffer.\n");
+INVALID_STYLING:
+   applyInvalidInputStyling(txtData);
+   return;
+}
+
+static void validateInputFields(void) {
+   // If we are set for RX we need to make sure a length was given.
+   if( !strcmp(STRING_TX, gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(cboTxRx))) ) {
+      // If we are set for TX we need to make sure a data buffer was given.
+      validateTxData();
+   }
+   else if( !strcmp(STRING_RX, gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(cboTxRx))) ) {
+      validateRxLen();
+   }
+}
+
+static void addTxRxToList(void) {
    GtkWidget *row;
    GtkWidget *label;
    GtkWidget *hbox;
@@ -34,42 +156,78 @@ static void addListRow(void) {
 
 }
 
-static void clearBox(void) {
+static void clearBox(GtkWidget *pBox) {
    GList *children, *iter;
 
-   children = gtk_container_get_children(GTK_CONTAINER(bxTxRx));
+   children = gtk_container_get_children(GTK_CONTAINER(pBox));
    for(iter = children; iter != NULL; iter = g_list_next(iter))
    gtk_widget_destroy(GTK_WIDGET(iter->data));
    g_list_free(children);
 }
 
-void on_btnSend_clicked( GtkWidget *widget, gpointer   data ) {
-   addListRow();
+static void initCboTxRx(void) {
+   gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(cboTxRx), NULL, STRING_TX);
+   gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(cboTxRx), NULL, STRING_RX);
+   gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(cboTxRx), NULL, STRING_TX_RX);
+   gtk_combo_box_set_active( GTK_COMBO_BOX_TEXT(cboTxRx), 0);
 }
 
-void on_btnClear_clicked( GtkWidget *widget, gpointer   data ) {
-   clearBox();
-   rowCounter = 0;
-}
-int main(int argc,char *argv[]) {
-   gtk_init(&argc, &argv);
+static void initUI(void) {
 
+   // Init and use our glade layout
    builder = gtk_builder_new_from_file("../layout.glade");
 
+   // Retrieve all of our widgets
    window = GTK_WIDGET(gtk_builder_get_object(builder, "window1"));
-
-   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-
-   gtk_builder_connect_signals(builder, NULL);
-
    fixed1 = GTK_WIDGET(gtk_builder_get_object(builder, "fixed1"));
    btnSend = GTK_WIDGET(gtk_builder_get_object(builder, "btnSend"));
    btnClear = GTK_WIDGET(gtk_builder_get_object(builder, "btnClear"));
    lblStatus = GTK_WIDGET(gtk_builder_get_object(builder, "lblStatus"));
+   lblTxDataStatus = GTK_WIDGET(gtk_builder_get_object(builder, "lblTxDataStatus"));
    bxTxRx = GTK_WIDGET(gtk_builder_get_object(builder, "bxTxRx"));
    scrollWindow = GTK_WIDGET(gtk_builder_get_object(builder, "scrollWindow"));
+   cboTxRx = GTK_WIDGET(gtk_builder_get_object(builder, "cboTxRx"));
+   txtData = GTK_WIDGET(gtk_builder_get_object(builder, "txtData"));
 
+   // Connect up the signals
+   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+   gtk_builder_connect_signals(builder, NULL);
+
+   // Import our custom .css stylesheet
+   cssProvider = gtk_css_provider_new();
+   gtk_css_provider_load_from_path(cssProvider, "../style.css", NULL);
+   gtk_style_context_add_provider_for_screen(gdk_screen_get_default(), GTK_STYLE_PROVIDER(cssProvider), GTK_STYLE_PROVIDER_PRIORITY_USER);
+
+   // Init the CBO with our labels and signals
+   initCboTxRx();
+
+   // Display our widgets
    gtk_widget_show(window);
+}
+
+void on_btnSend_clicked(GtkWidget *widget, gpointer data) {
+   addTxRxToList();
+}
+
+void on_btnClear_clicked(GtkWidget *widget, gpointer data) {
+   clearBox(bxTxRx);
+   rowCounter = 0;
+}
+
+void on_cboTxRx_changed(GtkWidget *widget, gpointer data) {
+   // Enable and disable inputs as needed.
+   validateInputFields();
+}
+
+void on_txtData_changed(GtkWidget *widget, gpointer data) {
+   // Every time txData changes, validate the input
+   validateTxData();
+}
+
+int main(int argc,char *argv[]) {
+   gtk_init(&argc, &argv);
+
+   initUI();
 
    if( mpsse_init() == EXIT_FAILURE ) {
       gtk_label_set_text(GTK_LABEL(lblStatus), (const gchar*)"Failed to init MPSSE module.");

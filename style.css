@@ -1,0 +1,13 @@
+.invalid_input {
+    border-color: red;
+    border-radius: 5px;
+}
+
+.valid_input {
+    /* border-color: green; */
+}
+
+entry {
+    box-shadow: none;
+    border-color: transparent;
+}
